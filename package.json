@@ -1,0 +1,16 @@
+{
+  "name": "liero-forever",
+  "version": "1.0.0",
+  "private": true,
+  "description": "리에로 포에버 - 웹 실시간 멀티 땅굴 결투 게임 서버",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
