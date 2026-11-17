@@ -82,12 +82,18 @@ kbd{background:#23253b;border-radius:4px;padding:1px 5px;font-size:12px;color:#e
 .chat-log{flex:1;min-height:0;overflow-y:auto;overflow-wrap:anywhere;line-height:1.45;color:#c5c9dc;text-align:left}
 .chat-line b{font-weight:700;margin-right:6px}
 .chat input[type=text]{flex:none;padding:5px 10px;font-size:13px;border-radius:8px}
-#chat-game{position:fixed;left:0;right:0;bottom:0;height:0;z-index:6;display:none;padding:6px 12px;background:#0b0c16;border-top:1px solid #2a2c44}
-#chat-game{justify-content:flex-end}
-#chat-game .chat-log{flex:none;line-height:18px}
-#chat-peek{position:fixed;left:50%;top:10px;transform:translateX(-50%);max-width:min(calc(100vw - 420px),460px);z-index:5;display:none;pointer-events:none;padding:4px 8px;border-radius:8px;background:rgba(7,8,15,.55);font-size:12px;line-height:17px;color:#e9ecf5;transition:opacity .8s}
-#chat-peek .chat-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#chat-peek.dim{opacity:0}
+#chat-game{position:fixed;left:10px;top:10px;width:360px;height:170px;z-index:6;display:none;gap:0;padding:0 0 8px;background:rgba(11,12,22,var(--cfa,.6));border:1px solid rgba(124,108,240,calc(var(--cfa,.6)*.7));border-radius:10px;overflow:hidden;color:#e9ecf5;text-shadow:0 1px 2px rgba(0,0,0,.9);transition:border-color .3s,box-shadow .3s}
+#chat-game.cf-col{height:auto!important}
+#chat-game.cf-col .chat-log,#chat-game.cf-col .cf-rz{display:none}
+#chat-game.cf-new{border-color:#ffd43b;box-shadow:0 0 0 2px rgba(255,212,59,.45)}
+.cf-bar{flex:none;display:flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 10px;background:rgba(28,30,51,var(--cfa,.6));cursor:move;touch-action:none;user-select:none;-webkit-user-select:none}
+.cf-title{flex:1;min-width:0;font-size:12px;font-weight:700;color:#c5c9dc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cf-title .chat-line{display:inline;font-weight:400}
+.cf-bar input[type=range]{width:64px;margin:0;flex:none;cursor:pointer;accent-color:#7c6cf0}
+.cf-bar button{width:24px;height:22px;margin:0;padding:0;flex:none;font-size:12px;line-height:1;border-radius:6px;background:rgba(28,30,51,.85)}
+#chat-game .chat-log{padding:4px 10px 0;line-height:18px;overscroll-behavior:contain}
+#chat-game input[type=text]{width:auto;margin:6px 8px 0;background:rgba(11,12,22,calc(var(--cfa,.6)*.5 + .5))}
+.cf-rz{position:absolute;right:0;bottom:0;width:14px;height:14px;cursor:nwse-resize;touch-action:none;background:linear-gradient(135deg,transparent 55%,rgba(255,255,255,.35) 55%)}
 #chat-lobby{margin-top:12px}
 #chat-lobby .chat-log{flex:none;height:110px;background:#0b0c16;border:1px solid #23253b;border-radius:10px;padding:6px 10px}
 @media (pointer:coarse){.chat input[type=text]{font-size:16px}}
@@ -100,7 +106,6 @@ kbd{background:#23253b;border-radius:4px;padding:1px 5px;font-size:12px;color:#e
 <div id="keyguide"></div>
 <div id="touch"></div>
 <div id="chat-game"></div>
-<div id="chat-peek" aria-hidden="true"></div>
 <div id="toast" role="status"></div>
 
 <section id="s-menu" class="screen on"><div class="card">
@@ -550,14 +555,14 @@ if(HAS_DOM){
 // ================= 화면/입력 =================
 const $=id=>document.getElementById(id);
 const cv=$('cv'),ctx=cv.getContext('2d');
-let SC=3,TS=1,VW=400,VH=220,portrait=false,panelH=0,chatH=0,chatShown=false;
+let SC=3,TS=1,VW=400,VH=220,portrait=false,panelH=0,chatShown=false;
 
 const keys=new Set();
 const GAME_CODES=new Set(['ShiftLeft','ShiftRight','Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8','Digit9','Digit0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space','Slash','Quote','Semicolon','Comma','Period']);
 const tapped=new Set();let ctrlRead=false;
 addEventListener('keydown',e=>{if(document.activeElement&&document.activeElement.tagName==='INPUT')return;keys.add(e.code);if(!e.repeat)tapped.add(e.code);if(screen==='game'&&(GAME_CODES.has(e.code)||e.code.startsWith('Key')))e.preventDefault();});
 addEventListener('keyup',e=>keys.delete(e.code));
-addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.repeat&&screen==='game'&&chatH>0&&!(document.activeElement&&document.activeElement.tagName==='INPUT')){e.preventDefault();chatFocus();}});
+addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.repeat&&screen==='game'&&chatShown&&!(document.activeElement&&document.activeElement.tagName==='INPUT')){e.preventDefault();chatFocus();}});
 addEventListener('blur',()=>keys.clear());
 const touch={};
 const BIND_A={left:['KeyA'],right:['KeyD'],up:['KeyW'],down:['KeyS'],fire:['KeyX'],jump:['KeyZ'],rope:['KeyC'],sw:['KeyV'],dig:['ShiftLeft'],reel:['KeyQ']};
@@ -649,12 +654,8 @@ function layout(){
   const vv=window.visualViewport,w=Math.round(vv?vv.width:innerWidth),h=Math.round(vv?vv.height:innerHeight),dpr=Math.min(3,devicePixelRatio||1);
   portrait=isTouch&&h>w*1.1;
   panelH=portrait?Math.round(clamp(h*.36,290,340)):0;
-  chatH=chatShown&&!(isTouch&&!portrait)?(portrait?96:120):0; // 가로 터치 화면은 조작 버튼이 캔버스 위를 덮어서 채팅을 쓰지 않음
-  const gh=h-panelH-chatH;
-  const cg=$('chat-game');cg.style.display=chatH?'flex':'none';cg.style.height=chatH+'px';cg.style.bottom=panelH+'px';
-  if(chatH){const ci=cg.querySelector('input'),lh=18,av=chatH-12-4-(ci?ci.offsetHeight:30);cg.querySelector('.chat-log').style.height=Math.max(lh,Math.floor(av/lh)*lh)+'px';} // 로그 높이를 줄 단위로 맞춰 맨 윗줄이 잘리지 않게
-  chatStick(cg);chatPeekShow();
-  $('keyguide').style.bottom=(chatH+10)+'px';toastPos();
+  const gh=h-panelH;
+  cwShow();
   cv.style.height=gh+'px';
   tdiv.classList.toggle('pt',portrait);tdiv.style.setProperty('--ph',panelH+'px');
   const ar=w/Math.max(1,gh),base=isTouch?190:220;
@@ -865,10 +866,10 @@ function show(s){
   $('hud-fs').style.display=(s==='game'&&fsSupported)?'block':'none';updateFsBtn();
   renderKeyGuide();
   tdiv.style.display=(s==='game'&&isTouch&&mode!=='local')?'block':'none';
-  const cs=(s==='game'||s==='result')&&chatOn();if(cs!==chatShown){chatShown=cs;layout();}
+  const cs=(s==='game'||s==='result')&&chatOn()&&!isTouch;if(cs!==chatShown){chatShown=cs;cwShow();}
   if(s!=='game'&&document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#chat-game'))document.activeElement.blur();
   if(s==='lobby')chatStick($('chat-lobby'));
-  chatPeekShow();toastPos();
+  toastPos();
   if(s!=='game'){for(const k in touch)touch[k]=false;LS.reset();RS.reset();}
 }
 function resetFx(){fx.parts=[];fx.fl=[];prevHp=[];prevAlive=[];dispPos=[];viewports.length=0;}
@@ -907,7 +908,7 @@ let cGameId=null,cSnapG=null,cView=null,myIdx=-1,lastSent='',lastLobbyG=null;  /
 const SERVER_MODE=!!window.LF_WS;let serverG=null;
 const ONLINE_NOTE_OK=SERVER_MODE?'이 서버에 접속한 사람끼리 방을 만들어 대전합니다.':'같은 링크를 공유받은 친구들과 방을 만들어 대전합니다.';
 let toastT=0;
-function toastPos(){const el=$('toast'),g=screen==='game'||screen==='result';el.style.top=g?'auto':'12px';el.style.bottom=g?(chatH+24)+'px':'auto';} // 대기방 등에서는 카드 하단 버튼과 겹치지 않게 위쪽에
+function toastPos(){const el=$('toast'),g=screen==='game'||screen==='result';el.style.top=g?'auto':'12px';el.style.bottom=g?'24px':'auto';} // 대기방 등에서는 카드 하단 버튼과 겹치지 않게 위쪽에
 function toast(msg){const el=$('toast');el.textContent=msg;el.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>{el.style.display='none';},2600);}
 // ----- 채팅 (서버 모드 + 온라인 방 안에서만) -----
 const chatViews=[];let chatMsgs=[];
@@ -915,16 +916,45 @@ function chatOn(){return SERVER_MODE&&mode==='online'&&!!nroom;}
 function chatStick(root){const lg=root.querySelector&&root.querySelector('.chat-log');if(lg)lg.scrollTop=lg.scrollHeight;}
 function chatLine(m){const d=document.createElement('div');d.className='chat-line';const b=document.createElement('b');b.textContent=cleanName(m.nm);b.style.color=safeColor(m.c);const t=document.createElement('span');t.textContent=String(m.text);d.append(b,t);return d;}
 function chatOk(m){return m&&typeof m==='object'&&typeof m.text==='string'&&m.text.length>0;}
-function chatSet(list){chatMsgs=(Array.isArray(list)?list:[]).filter(chatOk).slice(-50);for(const v of chatViews){v.log.textContent='';for(const m of chatMsgs)v.log.appendChild(chatLine(m));v.log.scrollTop=v.log.scrollHeight;}chatPeek(false);}
+function chatSet(list){chatMsgs=(Array.isArray(list)?list:[]).filter(chatOk).slice(-50);for(const v of chatViews){v.log.textContent='';for(const m of chatMsgs)v.log.appendChild(chatLine(m));v.log.scrollTop=v.log.scrollHeight;}cwTitle();}
 function chatAdd(m){if(!chatOk(m))return;chatMsgs.push(m);if(chatMsgs.length>50)chatMsgs.shift();
-  for(const v of chatViews){const lg=v.log,near=lg.scrollHeight-lg.scrollTop-lg.clientHeight<40;lg.appendChild(chatLine(m));while(lg.childNodes.length>50)lg.removeChild(lg.firstChild);if(near)lg.scrollTop=lg.scrollHeight;}chatPeek(true);}
-// 가로 터치 게임 화면: 채팅 패널 대신 최근 2줄만 읽기 전용으로 위쪽 가운데에 띄우고 잠시 후 흐리게
-let peekT=0,peekVis=false;
-function chatPeekOn(){return chatShown&&isTouch&&!portrait&&(screen==='game'||screen==='result');}
-function chatPeekWake(){const el=$('chat-peek');el.classList.remove('dim');clearTimeout(peekT);peekT=setTimeout(()=>el.classList.add('dim'),6000);}
-function chatPeekShow(){const el=$('chat-peek');if(!el)return;const on=chatPeekOn()&&chatMsgs.length>0;el.style.display=on?'block':'none';if(on&&!peekVis)chatPeekWake();peekVis=on;}
-function chatPeek(fresh){const el=$('chat-peek');if(!el)return;el.textContent='';for(const m of chatMsgs.slice(-2))el.appendChild(chatLine(m));chatPeekShow();if(fresh&&peekVis)chatPeekWake();}
-function chatFocus(){const v=chatViews[0];if(v){keys.clear();tapped.clear();v.inp.focus();}}
+  for(const v of chatViews){const lg=v.log,near=lg.scrollHeight-lg.scrollTop-lg.clientHeight<40;lg.appendChild(chatLine(m));while(lg.childNodes.length>50)lg.removeChild(lg.firstChild);if(near)lg.scrollTop=lg.scrollHeight;}cwTitle();cwFlash();}
+function chatFocus(){const v=chatViews[0];if(v&&chatShown){keys.clear();tapped.clear();v.inp.focus();}}
+// 게임 화면 채팅: 캔버스 위에 떠 있는 반투명 창 (데스크톱 전용, 제목 줄로 끌어 이동·모서리로 크기, 투명도·접기, localStorage 저장)
+// 터치 기기는 공간이 없어 게임 화면 채팅을 만들지 않음(대기방 채팅만)
+const CW={el:$('chat-game'),st:null,op:60,newT:0,title:null,fold:null,rng:null};
+let cwSaved={};try{const o=JSON.parse(localStorage.getItem('lf_chatwin')||'{}');if(o&&typeof o==='object')cwSaved=o;}catch(e){cwSaved={};}
+const cwNum=(a,b)=>typeof a==='number'&&isFinite(a)?a:b;
+CW.op=clamp(Math.round(cwNum(cwSaved.op,60)),20,100);
+function cwVp(){const vv=window.visualViewport;return{w:Math.round(vv?vv.width:innerWidth),h:Math.round(vv?vv.height:innerHeight)};}
+function cwLoad(){const v=cwVp(),d={x:10,y:v.h-170-84,w:360,h:170,c:0}; // 기본: 좌하단, 캔버스 HUD(체력·무기) 바로 위
+  CW.st={x:cwNum(cwSaved.x,d.x),y:cwNum(cwSaved.y,d.y),w:cwNum(cwSaved.w,d.w),h:cwNum(cwSaved.h,d.h),c:cwSaved.c?1:0};}
+function cwSave(){const s=CW.st;if(!s)return;cwSaved={x:s.x,y:s.y,w:s.w,h:s.h,c:s.c,op:CW.op};try{localStorage.setItem('lf_chatwin',JSON.stringify(cwSaved));}catch(e){}}
+function cwApply(){const el=CW.el,s=CW.st,v=cwVp();if(!s||el.style.display==='none')return;
+  s.w=clamp(Math.round(s.w),200,Math.max(200,v.w-8));s.h=clamp(Math.round(s.h),90,Math.max(90,v.h-8));
+  el.classList.toggle('cf-col',!!s.c);el.style.width=s.w+'px';el.style.height=s.c?'auto':s.h+'px';
+  s.x=clamp(Math.round(s.x),0,Math.max(0,v.w-el.offsetWidth));s.y=clamp(Math.round(s.y),0,Math.max(0,v.h-el.offsetHeight)); // 화면 밖으로 나가지 않게
+  el.style.left=s.x+'px';el.style.top=s.y+'px';el.style.setProperty('--cfa',(CW.op/100).toFixed(2));
+  CW.fold.textContent=s.c?'▴':'▾';CW.fold.title=s.c?'펼치기':'접기';cwTitle();}
+function cwShow(){const el=CW.el;if(!el)return;const on=chatShown&&!isTouch;el.style.display=on?'flex':'none';if(!on)return;if(!CW.st)cwLoad();cwApply();chatStick(el);}
+function cwTitle(){const t=CW.title;if(!t)return;t.textContent='';const m=chatMsgs[chatMsgs.length-1];if(CW.st&&CW.st.c&&m)t.appendChild(chatLine(m));else t.textContent='채팅';} // 접힌 상태: 제목 자리에 최근 한 줄
+function cwFlash(){const el=CW.el;if(isTouch||el.style.display==='none')return;if(CW.st&&!CW.st.c&&document.activeElement===chatViews[0].inp)return;el.classList.add('cf-new');clearTimeout(CW.newT);CW.newT=setTimeout(()=>el.classList.remove('cf-new'),1200);}
+function cwDrag(h,move){h.addEventListener('pointerdown',e=>{if(e.button>0||!CW.st||e.target.closest('input,button'))return;e.preventDefault();const id=e.pointerId,sx=e.clientX,sy=e.clientY,o={...CW.st};try{h.setPointerCapture(id);}catch(_){}
+  const mv=ev=>{if(ev.pointerId!==id)return;move(o,ev.clientX-sx,ev.clientY-sy);cwApply();};
+  const up=ev=>{if(ev.pointerId!==id)return;h.removeEventListener('pointermove',mv);h.removeEventListener('pointerup',up);h.removeEventListener('pointercancel',up);cwSave();};
+  h.addEventListener('pointermove',mv);h.addEventListener('pointerup',up);h.addEventListener('pointercancel',up);});}
+if(!isTouch){
+  const bar=document.createElement('div');bar.className='cf-bar';
+  CW.title=document.createElement('span');CW.title.className='cf-title';CW.title.textContent='채팅';
+  const rng=CW.rng=document.createElement('input');rng.type='range';rng.min='20';rng.max='100';rng.step='5';rng.value=String(CW.op);rng.title='투명도';rng.tabIndex=-1;rng.setAttribute('aria-label','채팅창 투명도');
+  rng.addEventListener('input',()=>{CW.op=clamp(+rng.value||60,20,100);CW.el.style.setProperty('--cfa',(CW.op/100).toFixed(2));});
+  rng.addEventListener('change',()=>{cwSave();rng.blur();});
+  const fold=CW.fold=document.createElement('button');fold.type='button';fold.tabIndex=-1;
+  fold.addEventListener('pointerdown',e=>e.preventDefault()); // 포커스를 가져가지 않게(Space가 버튼을 누르지 않도록)
+  fold.addEventListener('click',()=>{const s=CW.st,el=CW.el;if(!s)return;const low=s.y+el.offsetHeight/2>cwVp().h/2,b=s.y+el.offsetHeight;s.c=s.c?0:1;cwApply();if(low){s.y=b-el.offsetHeight;cwApply();}cwSave();chatStick(el);fold.blur();}); // 아래쪽에 있으면 아래 변을 고정
+  bar.append(CW.title,rng,fold);CW.el.appendChild(bar);
+  cwDrag(bar,(o,dx,dy)=>{CW.st.x=o.x+dx;CW.st.y=o.y+dy;});
+}else CW.el.remove();
 function makeChatView(root){
   const log=document.createElement('div');log.className='chat-log';
   const inp=document.createElement('input');inp.type='text';inp.maxLength=120;inp.placeholder='채팅 (Enter)';inp.autocomplete='off';inp.setAttribute('aria-label','채팅 입력');
@@ -939,7 +969,9 @@ function makeChatView(root){
   inp.addEventListener('keyup',e=>e.stopPropagation());
   chatViews.push({log,inp});
 }
-makeChatView($('chat-game'));makeChatView($('chat-lobby'));if(!SERVER_MODE)$('chat-lobby').style.display='none';
+if(!isTouch){makeChatView(CW.el);const rz=document.createElement('div');rz.className='cf-rz';rz.title='크기 조절';CW.el.appendChild(rz);
+  cwDrag(rz,(o,dx,dy)=>{const v=cwVp();CW.st.w=Math.min(o.w+dx,v.w-o.x);CW.st.h=Math.min(o.h+dy,v.h-o.y);});}
+makeChatView($('chat-lobby'));if(!SERVER_MODE)$('chat-lobby').style.display='none';
 cv.addEventListener('mousedown',()=>{if(document.activeElement&&document.activeElement.tagName==='INPUT')document.activeElement.blur();});
 const BOTFAIL_MSG={'not host':'방장만 가능해요','in game':'게임 중에는 바꿀 수 없어요','full':'방이 가득 찼어요 (봇은 최대 5명)','no such bot':'없는 봇이에요'};
 // ----- 전용 서버(WebSocket) 연결: claude.ai room과 같은 모양의 객체를 만들어 나머지 코드를 그대로 씀 -----
