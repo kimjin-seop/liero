@@ -97,6 +97,12 @@ kbd{background:#23253b;border-radius:4px;padding:1px 5px;font-size:12px;color:#e
 #chat-lobby{margin-top:12px}
 #chat-lobby .chat-log{flex:none;height:110px;background:#0b0c16;border:1px solid #23253b;border-radius:10px;padding:6px 10px}
 @media (pointer:coarse){.chat input[type=text]{font-size:16px}}
+/* 확대·선택·길게 누름 메뉴 방지: 게임 캔버스·터치 조작은 제스처 전부 차단, 버튼·화면은 더블탭 확대만 차단. 입력창·채팅 기록은 선택/복사 허용 */
+body{-webkit-touch-callout:none}
+#cv,#touch,#touch *{touch-action:none;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+.screen,button,summary,.sw{touch-action:manipulation}
+img,canvas{-webkit-user-drag:none}
+input,textarea,.chat-log{user-select:text;-webkit-user-select:text;-webkit-touch-callout:default}
 </style>
 </head>
 <body>
@@ -681,6 +687,20 @@ let layoutT=0;const relayout=()=>{clearTimeout(layoutT);layoutT=setTimeout(layou
 addEventListener('resize',relayout);addEventListener('orientationchange',()=>setTimeout(layout,250));
 if(window.visualViewport)visualViewport.addEventListener('resize',relayout);
 document.addEventListener('fullscreenchange',()=>{setTimeout(layout,100);updateFsBtn();});document.addEventListener('webkitfullscreenchange',()=>{setTimeout(layout,100);updateFsBtn();});
+// 게임(결과 포함) 화면에서만: 핀치·iOS 제스처 확대, Ctrl+휠 확대, 길게 누름 메뉴, 텍스트 선택·이미지 끌기 차단. 화면을 나가면 해제
+// (Ctrl +/- 키보드 확대는 브라우저가 처리해 막을 수 없음. 로비는 접근성을 위해 iOS 핀치 확대를 남김)
+const zgEditable=t=>!!(t&&t.closest&&t.closest('input,textarea,.chat-log'));
+const zgPrevent=e=>{if(e.cancelable)e.preventDefault();};
+const zgTouch=e=>{if(e.touches&&e.touches.length>1&&e.cancelable&&!(e.target.closest&&e.target.closest('button,input')))e.preventDefault();}; // 두 손가락 이상: 핀치 시작 차단(버튼 탭은 살림)
+const zgWheel=e=>{if(e.ctrlKey&&e.cancelable)e.preventDefault();};
+const zgNoEdit=e=>{if(!zgEditable(e.target))e.preventDefault();};
+const ZG_LIST=[['gesturestart',zgPrevent],['gesturechange',zgPrevent],['touchstart',zgTouch],['touchmove',zgTouch],['wheel',zgWheel],['contextmenu',zgNoEdit],['selectstart',zgNoEdit],['dragstart',zgNoEdit]];
+let zgOn=false;
+function zoomGuard(on){
+  if(on===zgOn)return;zgOn=on;
+  for(const[t,f]of ZG_LIST){if(on)document.addEventListener(t,f,{passive:false});else document.removeEventListener(t,f);}
+  if(on&&!zgEditable(document.activeElement)){try{const s=getSelection();if(s&&s.rangeCount)s.removeAllRanges();}catch(_){}}
+}
 // 전체화면: 지원하는 브라우저(안드로이드 크롬 등)에서 주소창까지 숨김. 버튼 클릭 안에서만 호출.
 const fsEl=document.documentElement;
 const fsSupported=!!(fsEl.requestFullscreen||fsEl.webkitRequestFullscreen)&&(document.fullscreenEnabled!==false||document.webkitFullscreenEnabled);
@@ -869,7 +889,7 @@ function show(s){
   const cs=(s==='game'||s==='result')&&chatOn()&&!isTouch;if(cs!==chatShown){chatShown=cs;cwShow();}
   if(s!=='game'&&document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#chat-game'))document.activeElement.blur();
   if(s==='lobby')chatStick($('chat-lobby'));
-  toastPos();
+  toastPos();zoomGuard(inGame);
   if(s!=='game'){for(const k in touch)touch[k]=false;LS.reset();RS.reset();}
 }
 function resetFx(){fx.parts=[];fx.fl=[];prevHp=[];prevAlive=[];dispPos=[];viewports.length=0;}
