@@ -78,6 +78,19 @@ kbd{background:#23253b;border-radius:4px;padding:1px 5px;font-size:12px;color:#e
 .lobby-head span{flex:1;min-width:0}
 .lobby-head button{width:auto;margin:0;padding:7px 12px;font-size:14px;flex:none}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:calc(100vw - 32px);padding:10px 16px;border-radius:10px;background:#2b1f2a;border:1px solid #6b2f3a;color:#ffc9c9;font-size:14px;z-index:20;display:none;pointer-events:none;text-align:center}
+.chat{display:flex;flex-direction:column;gap:4px;font-size:13px;user-select:text;-webkit-user-select:text;touch-action:auto}
+.chat-log{flex:1;min-height:0;overflow-y:auto;overflow-wrap:anywhere;line-height:1.45;color:#c5c9dc;text-align:left}
+.chat-line b{font-weight:700;margin-right:6px}
+.chat input[type=text]{flex:none;padding:5px 10px;font-size:13px;border-radius:8px}
+#chat-game{position:fixed;left:0;right:0;bottom:0;height:0;z-index:6;display:none;padding:6px 12px;background:#0b0c16;border-top:1px solid #2a2c44}
+#chat-game{justify-content:flex-end}
+#chat-game .chat-log{flex:none;line-height:18px}
+#chat-peek{position:fixed;left:50%;top:10px;transform:translateX(-50%);max-width:min(calc(100vw - 420px),460px);z-index:5;display:none;pointer-events:none;padding:4px 8px;border-radius:8px;background:rgba(7,8,15,.55);font-size:12px;line-height:17px;color:#e9ecf5;transition:opacity .8s}
+#chat-peek .chat-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#chat-peek.dim{opacity:0}
+#chat-lobby{margin-top:12px}
+#chat-lobby .chat-log{flex:none;height:110px;background:#0b0c16;border:1px solid #23253b;border-radius:10px;padding:6px 10px}
+@media (pointer:coarse){.chat input[type=text]{font-size:16px}}
 </style>
 </head>
 <body>
@@ -86,6 +99,8 @@ kbd{background:#23253b;border-radius:4px;padding:1px 5px;font-size:12px;color:#e
 <button id="hud-fs">⤢ 전체화면</button>
 <div id="keyguide"></div>
 <div id="touch"></div>
+<div id="chat-game"></div>
+<div id="chat-peek" aria-hidden="true"></div>
 <div id="toast" role="status"></div>
 
 <section id="s-menu" class="screen on"><div class="card">
@@ -129,6 +144,7 @@ kbd{background:#23253b;border-radius:4px;padding:1px 5px;font-size:12px;color:#e
   <div class="opts" id="lobby-opts"></div>
   <div class="opts" id="lobby-pull"></div>
   <p class="note" id="lobby-status"></p>
+  <div id="chat-lobby"></div>
   <button id="b-ready">준비</button>
   <button id="b-leave">나가기</button>
 </div></section>
@@ -534,13 +550,14 @@ if(HAS_DOM){
 // ================= 화면/입력 =================
 const $=id=>document.getElementById(id);
 const cv=$('cv'),ctx=cv.getContext('2d');
-let SC=3,TS=1,VW=400,VH=220,portrait=false,panelH=0;
+let SC=3,TS=1,VW=400,VH=220,portrait=false,panelH=0,chatH=0,chatShown=false;
 
 const keys=new Set();
 const GAME_CODES=new Set(['ShiftLeft','ShiftRight','Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8','Digit9','Digit0','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space','Slash','Quote','Semicolon','Comma','Period']);
 const tapped=new Set();let ctrlRead=false;
 addEventListener('keydown',e=>{if(document.activeElement&&document.activeElement.tagName==='INPUT')return;keys.add(e.code);if(!e.repeat)tapped.add(e.code);if(screen==='game'&&(GAME_CODES.has(e.code)||e.code.startsWith('Key')))e.preventDefault();});
 addEventListener('keyup',e=>keys.delete(e.code));
+addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.repeat&&screen==='game'&&chatH>0&&!(document.activeElement&&document.activeElement.tagName==='INPUT')){e.preventDefault();chatFocus();}});
 addEventListener('blur',()=>keys.clear());
 const touch={};
 const BIND_A={left:['KeyA'],right:['KeyD'],up:['KeyW'],down:['KeyS'],fire:['KeyX'],jump:['KeyZ'],rope:['KeyC'],sw:['KeyV'],dig:['ShiftLeft'],reel:['KeyQ']};
@@ -632,7 +649,12 @@ function layout(){
   const vv=window.visualViewport,w=Math.round(vv?vv.width:innerWidth),h=Math.round(vv?vv.height:innerHeight),dpr=Math.min(3,devicePixelRatio||1);
   portrait=isTouch&&h>w*1.1;
   panelH=portrait?Math.round(clamp(h*.36,290,340)):0;
-  const gh=h-panelH;
+  chatH=chatShown&&!(isTouch&&!portrait)?(portrait?96:120):0; // 가로 터치 화면은 조작 버튼이 캔버스 위를 덮어서 채팅을 쓰지 않음
+  const gh=h-panelH-chatH;
+  const cg=$('chat-game');cg.style.display=chatH?'flex':'none';cg.style.height=chatH+'px';cg.style.bottom=panelH+'px';
+  if(chatH){const ci=cg.querySelector('input'),lh=18,av=chatH-12-4-(ci?ci.offsetHeight:30);cg.querySelector('.chat-log').style.height=Math.max(lh,Math.floor(av/lh)*lh)+'px';} // 로그 높이를 줄 단위로 맞춰 맨 윗줄이 잘리지 않게
+  chatStick(cg);chatPeekShow();
+  $('keyguide').style.bottom=(chatH+10)+'px';toastPos();
   cv.style.height=gh+'px';
   tdiv.classList.toggle('pt',portrait);tdiv.style.setProperty('--ph',panelH+'px');
   const ar=w/Math.max(1,gh),base=isTouch?190:220;
@@ -843,6 +865,10 @@ function show(s){
   $('hud-fs').style.display=(s==='game'&&fsSupported)?'block':'none';updateFsBtn();
   renderKeyGuide();
   tdiv.style.display=(s==='game'&&isTouch&&mode!=='local')?'block':'none';
+  const cs=(s==='game'||s==='result')&&chatOn();if(cs!==chatShown){chatShown=cs;layout();}
+  if(s!=='game'&&document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#chat-game'))document.activeElement.blur();
+  if(s==='lobby')chatStick($('chat-lobby'));
+  chatPeekShow();toastPos();
   if(s!=='game'){for(const k in touch)touch[k]=false;LS.reset();RS.reset();}
 }
 function resetFx(){fx.parts=[];fx.fl=[];prevHp=[];prevAlive=[];dispPos=[];viewports.length=0;}
@@ -881,7 +907,40 @@ let cGameId=null,cSnapG=null,cView=null,myIdx=-1,lastSent='',lastLobbyG=null;  /
 const SERVER_MODE=!!window.LF_WS;let serverG=null;
 const ONLINE_NOTE_OK=SERVER_MODE?'이 서버에 접속한 사람끼리 방을 만들어 대전합니다.':'같은 링크를 공유받은 친구들과 방을 만들어 대전합니다.';
 let toastT=0;
+function toastPos(){const el=$('toast'),g=screen==='game'||screen==='result';el.style.top=g?'auto':'12px';el.style.bottom=g?(chatH+24)+'px':'auto';} // 대기방 등에서는 카드 하단 버튼과 겹치지 않게 위쪽에
 function toast(msg){const el=$('toast');el.textContent=msg;el.style.display='block';clearTimeout(toastT);toastT=setTimeout(()=>{el.style.display='none';},2600);}
+// ----- 채팅 (서버 모드 + 온라인 방 안에서만) -----
+const chatViews=[];let chatMsgs=[];
+function chatOn(){return SERVER_MODE&&mode==='online'&&!!nroom;}
+function chatStick(root){const lg=root.querySelector&&root.querySelector('.chat-log');if(lg)lg.scrollTop=lg.scrollHeight;}
+function chatLine(m){const d=document.createElement('div');d.className='chat-line';const b=document.createElement('b');b.textContent=cleanName(m.nm);b.style.color=safeColor(m.c);const t=document.createElement('span');t.textContent=String(m.text);d.append(b,t);return d;}
+function chatOk(m){return m&&typeof m==='object'&&typeof m.text==='string'&&m.text.length>0;}
+function chatSet(list){chatMsgs=(Array.isArray(list)?list:[]).filter(chatOk).slice(-50);for(const v of chatViews){v.log.textContent='';for(const m of chatMsgs)v.log.appendChild(chatLine(m));v.log.scrollTop=v.log.scrollHeight;}chatPeek(false);}
+function chatAdd(m){if(!chatOk(m))return;chatMsgs.push(m);if(chatMsgs.length>50)chatMsgs.shift();
+  for(const v of chatViews){const lg=v.log,near=lg.scrollHeight-lg.scrollTop-lg.clientHeight<40;lg.appendChild(chatLine(m));while(lg.childNodes.length>50)lg.removeChild(lg.firstChild);if(near)lg.scrollTop=lg.scrollHeight;}chatPeek(true);}
+// 가로 터치 게임 화면: 채팅 패널 대신 최근 2줄만 읽기 전용으로 위쪽 가운데에 띄우고 잠시 후 흐리게
+let peekT=0,peekVis=false;
+function chatPeekOn(){return chatShown&&isTouch&&!portrait&&(screen==='game'||screen==='result');}
+function chatPeekWake(){const el=$('chat-peek');el.classList.remove('dim');clearTimeout(peekT);peekT=setTimeout(()=>el.classList.add('dim'),6000);}
+function chatPeekShow(){const el=$('chat-peek');if(!el)return;const on=chatPeekOn()&&chatMsgs.length>0;el.style.display=on?'block':'none';if(on&&!peekVis)chatPeekWake();peekVis=on;}
+function chatPeek(fresh){const el=$('chat-peek');if(!el)return;el.textContent='';for(const m of chatMsgs.slice(-2))el.appendChild(chatLine(m));chatPeekShow();if(fresh&&peekVis)chatPeekWake();}
+function chatFocus(){const v=chatViews[0];if(v){keys.clear();tapped.clear();v.inp.focus();}}
+function makeChatView(root){
+  const log=document.createElement('div');log.className='chat-log';
+  const inp=document.createElement('input');inp.type='text';inp.maxLength=120;inp.placeholder='채팅 (Enter)';inp.autocomplete='off';inp.setAttribute('aria-label','채팅 입력');
+  root.classList.add('chat');root.append(log,inp);
+  inp.addEventListener('focus',()=>{keys.clear();tapped.clear();mouse.l=mouse.r=false;});
+  inp.addEventListener('keydown',e=>{
+    e.stopPropagation(); // 입력 중에는 게임 키가 게임으로 가지 않게
+    if(e.isComposing||e.keyCode===229)return;
+    if(e.key==='Enter'){e.preventDefault();const t=inp.value.replace(/\s+/g,' ').trim();if(t&&nroom&&nroom.chat)nroom.chat(t);inp.value='';inp.blur();}
+    else if(e.key==='Escape'){e.preventDefault();inp.blur();}
+  });
+  inp.addEventListener('keyup',e=>e.stopPropagation());
+  chatViews.push({log,inp});
+}
+makeChatView($('chat-game'));makeChatView($('chat-lobby'));if(!SERVER_MODE)$('chat-lobby').style.display='none';
+cv.addEventListener('mousedown',()=>{if(document.activeElement&&document.activeElement.tagName==='INPUT')document.activeElement.blur();});
 const BOTFAIL_MSG={'not host':'방장만 가능해요','in game':'게임 중에는 바꿀 수 없어요','full':'방이 가득 찼어요 (봇은 최대 5명)','no such bot':'없는 봇이에요'};
 // ----- 전용 서버(WebSocket) 연결: claude.ai room과 같은 모양의 객체를 만들어 나머지 코드를 그대로 씀 -----
 function makeWsRoom(){
@@ -895,6 +954,7 @@ function makeWsRoom(){
       let list=Object.freeze([]),bots=Object.freeze([]),max=6;const cbs=new Set(),errs=new Set();
       return{name,peers:()=>list,bots:()=>bots,max:()=>max,
         addBot(){send({t:'add_bot'});},
+        chat(text){send({t:'chat',text:String(text)});},
         removeBot(id){send({t:'remove_bot',id:String(id)});},
         _setBots(arr,mx){bots=Object.freeze((Array.isArray(arr)?arr:[]).filter(b=>b&&typeof b.id==='string').map(b=>Object.freeze({id:b.id,nm:cleanName(b.nm),c:safeColor(b.c)})));if(typeof mx==='number'&&mx>0)max=mx|0;},
         onPeers(fn,onErr){cbs.add(fn);if(onErr)errs.add(onErr);setTimeout(()=>fn({peers:list,joined:list,left:[],updated:[]}),0);return()=>cbs.delete(fn);},
@@ -915,7 +975,10 @@ function makeWsRoom(){
     ws.onmessage=e=>{let m;try{m=JSON.parse(e.data);}catch(_){return;}
       if(m.t==='welcome'){me=String(m.peer);myPeer=me;if(!done){done=true;resolve(api);}}
       else if(m.t==='lobby'){roomInfo=Array.isArray(m.rooms)?m.rooms.filter(x=>x&&typeof x.name==='string'):null;lobby=mk(m.peers);fire(lobbyCbs,lobby);}
-      else if(m.t==='joined'){if(joinWait&&joinWait.name===m.name){named=makeNamed(m.name);const j=joinWait;joinWait=null;j.res(named);}}
+      else if(m.t==='joined'){chatSet([]);if(joinWait&&joinWait.name===m.name){named=makeNamed(m.name);const j=joinWait;joinWait=null;j.res(named);}}
+      else if(m.t==='chat'){chatAdd(m.msg);}
+      else if(m.t==='chathist'){chatSet(m.msgs);}
+      else if(m.t==='chatfail'){toast(m.reason==='rate'?'채팅을 너무 빨리 보내고 있어요':'지금은 채팅할 수 없어요');}
       else if(m.t==='joinfail'){if(joinWait){const j=joinWait;joinWait=null;j.rej(new Error(m.reason||'fail'));}}
       else if(m.t==='g'){serverG=m.g&&typeof m.g==='object'?m.g:null;}
       else if(m.t==='room'){if(named&&named.name===m.name){named._setBots(m.bots,m.max);named._set(m.peers);}}
@@ -979,7 +1042,7 @@ async function joinRoom(name){
 }
 function alertBox(msg){$('online-note').textContent=msg;}
 async function leaveRoom(){
-  const r=nroom;nroom=null;roomName=null;myG=null;sim=null;cGameId=null;serverG=null;mode=null;
+  const r=nroom;nroom=null;roomName=null;myG=null;sim=null;cGameId=null;serverG=null;mode=null;chatSet([]);
   if(r)try{await r.leave();}catch(e){}
   setLobbyPresence();show(room?'rooms':'menu');if(room)renderRooms();
 }

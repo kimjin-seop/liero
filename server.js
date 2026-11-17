@@ -61,6 +61,9 @@ const server = http.createServer((req, res) => {
 const ROOM_RE = /^[a-z0-9][a-z0-9_.-]{0,47}$/;
 const BAD_CHARS = /[\u0000-\u001f\u007f-\u009f­​-‏‪-‮⁠-⁯﻿-]/g;
 const cleanName = s => (String(s || '').replace(BAD_CHARS, '').trim().slice(0, 10)) || '플레이어';
+const CHAT_MAX = 120, CHAT_KEEP = 50, CHAT_BURST = 5, CHAT_WINDOW_MS = 8000, CHAT_GAP_MS = 400;
+// 채팅 정리: 제어문자·보이지 않는 문자 제거 -> 공백 하나로 -> 앞뒤 제거 -> 120자(코드포인트) 제한
+const cleanChat = s => Array.from(String(s).replace(BAD_CHARS, '').replace(/\s+/g, ' ').trim()).slice(0, CHAT_MAX).join('').trim();
 const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const newId = () => crypto.randomBytes(8).toString('hex');
 const send = (c, obj) => { if (c.ws.readyState === 1) c.ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj)); };
@@ -77,6 +80,7 @@ class Room {
     this.sim = null; this.meta = null; this.overAt = 0;
     this.bots = []; // [{id, nm, c}] 봇 슬롯 (대기실에서 유지됨)
     this.brain = null; // 게임 중 peer id -> Bot
+    this.chat = [];    // 최근 채팅 (CHAT_KEEP개)
   }
   total() { return this.members.size + this.bots.length; }
   players() {
@@ -232,6 +236,7 @@ wss.on('connection', (ws, req) => {
       r.members.set(c.peer, c); c.room = r; c.p = {};
       send(c, { t: 'joined', name });
       send(c, { t: 'g', g: r.g });
+      send(c, { t: 'chathist', msgs: r.chat });
       r.sendPeers(); scheduleLobby();
     } else if ((m.t === 'add_bot' || m.t === 'remove_bot') && c.room) {
       const r = c.room;
@@ -242,6 +247,20 @@ wss.on('connection', (ws, req) => {
       if (!ok) return send(c, { t: 'botfail', reason: m.t === 'add_bot' ? 'full' : 'no such bot' });
       c.p.rd = false; // 구성이 바뀌면 방장 준비 해제(의도치 않은 즉시 시작 방지)
       r.sendPeers(); scheduleLobby();
+    } else if (m.t === 'chat') {
+      const r = c.room;
+      if (!r) return send(c, { t: 'chatfail', reason: 'no room' });
+      if (typeof m.text !== 'string') return;
+      const text = cleanChat(m.text);
+      if (!text) return;
+      const t2 = Date.now();
+      c.chatTs = (c.chatTs || []).filter(x => t2 - x < CHAT_WINDOW_MS);
+      if (c.chatTs.length >= CHAT_BURST || (c.chatTs.length && t2 - c.chatTs[c.chatTs.length - 1] < CHAT_GAP_MS)) return send(c, { t: 'chatfail', reason: 'rate' });
+      c.chatTs.push(t2);
+      const msg = { id: newId().slice(0, 8), peer: c.peer, nm: cleanName(c.p.nm || c.lp.nm), c: Core.safeColor(c.p.c || c.lp.c), text, ts: t2 };
+      r.chat.push(msg); if (r.chat.length > CHAT_KEEP) r.chat.splice(0, r.chat.length - CHAT_KEEP);
+      const out = JSON.stringify({ t: 'chat', msg });
+      for (const mc of r.members.values()) send(mc, out);
     } else if (m.t === 'leave') {
       leaveRoom(c);
     } else if (m.t === 'rp' && c.room && m.p && typeof m.p === 'object') {
