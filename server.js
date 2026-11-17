@@ -22,6 +22,7 @@ const BOT_NAMES = ['봇 감자', '봇 두더지', '봇 지렁이', '봇 고구�
 
 // ---------- index.html 읽기 + 게임 코어 불러오기 ----------
 const HTML_PATH = path.join(__dirname, 'public', 'index.html');
+const OG_PATH = path.join(__dirname, 'public', 'assets', 'og.png');
 let PAGE = '';
 let Core = null;
 function loadPage() {
@@ -48,6 +49,15 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (url === '/favicon.ico') { res.writeHead(204); res.end(); return; }
+  // 링크 미리보기 이미지(og:image). 정해진 파일 하나만 서빙(경로 입력을 파일 경로로 쓰지 않음)
+  if (url === '/assets/og.png') {
+    fs.readFile(OG_PATH, (err, buf) => {
+      if (err) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Not found'); return; }
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': buf.length, 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
+      res.end(req.method === 'HEAD' ? undefined : buf);
+    });
+    return;
+  }
   if (url === '/healthz') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, clients: clients.size, rooms: rooms.size }));

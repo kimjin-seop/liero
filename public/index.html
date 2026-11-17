@@ -2,12 +2,56 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>리에로 포에버</title>
+<meta name="description" content="땅 파고, 로프 타고, 터뜨려라! 실시간 6인 땅굴 결투 · 봇전">
+<!-- 링크 미리보기(카카오톡·SNS). 이미지는 절대 URL 필요. 이미지 교체 후 카카오는 공유 디버거에서 캐시 초기화 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="리에로 포에버">
+<meta property="og:title" content="리에로 포에버">
+<meta property="og:description" content="땅 파고, 로프 타고, 터뜨려라! 실시간 6인 땅굴 결투 · 봇전">
+<meta property="og:url" content="https://liero.oddplay.kr/">
+<meta property="og:image" content="https://liero.oddplay.kr/assets/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="리에로 포에버 게임 장면">
+<meta property="og:locale" content="ko_KR">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="리에로 포에버">
+<meta name="twitter:description" content="땅 파고, 로프 타고, 터뜨려라! 실시간 6인 땅굴 결투 · 봇전">
+<meta name="twitter:image" content="https://liero.oddplay.kr/assets/og.png">
+<script>
+// 보이는 영역 기준 화면: 인앱 브라우저(카카오톡 등) 하단 툴바·주소창이 100vh 를 덮는 문제 대응.
+// visualViewport 높이·위치를 CSS 변수(--vvh/--vvw/--vvt)로 넘기고, body 가 그 박스를 차지한다(아래 body 규칙). 확대(핀치) 중에는 갱신하지 않음
+(function(){
+  var de=document.documentElement,raf=0,last='';
+  function sync(){
+    raf=0;var vv=window.visualViewport,h,w,t=0;
+    if(vv){if(vv.scale>1.01)return;h=vv.height;w=vv.width;t=Math.max(0,vv.offsetTop||0);}
+    else{h=window.innerHeight;w=window.innerWidth;}
+    h=Math.round(h);w=Math.round(w);t=Math.round(t);
+    var k=h+'|'+w+'|'+t;if(k===last||!h||!w)return;last=k;
+    de.style.setProperty('--vvh',h+'px');de.style.setProperty('--vvw',w+'px');de.style.setProperty('--vvt',t+'px');
+  }
+  function req(){if(!raf)raf=requestAnimationFrame(sync);}
+  window.lfVvSync=sync;sync();
+  addEventListener('resize',req);
+  addEventListener('orientationchange',function(){req();setTimeout(sync,250);setTimeout(sync,600);});
+  if(window.visualViewport){visualViewport.addEventListener('resize',req);visualViewport.addEventListener('scroll',req);}
+  addEventListener('pageshow',req);
+})();
+</script>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overscroll-behavior:none;position:fixed;inset:0;background:#07080f;color:#e9ecf5;font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
-#cv{cursor:crosshair;position:fixed;left:0;top:0;width:100vw;height:100vh;object-fit:contain;image-rendering:pixelated;image-rendering:crisp-edges;background:#07080f;display:none}
+/* 보이는 영역 박스: body = visualViewport(위치·높이) - 안전 영역. transform 으로 body 가 position:fixed 자식들의 기준 박스가 되어
+   bottom:0/height:100% 인 하단 UI(조작판·키 안내·토스트·화면 버튼)가 모두 보이는 영역 안에 놓인다. 남는 바깥(툴바 아래·노치)은 html 배경 */
+:root{--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--sar:env(safe-area-inset-right,0px)}
+html{height:100vh;height:100dvh}
+body{inset:auto;left:var(--sal);right:var(--sar);top:calc(var(--vvt,0px) + var(--sat));
+  height:calc(100vh - var(--sat) - var(--sab));height:calc(100dvh - var(--sat) - var(--sab));height:calc(var(--vvh,100dvh) - var(--sat) - var(--sab));transform:translateZ(0)}
+#cv{cursor:crosshair;position:fixed;left:0;top:0;width:100%;height:100%;object-fit:contain;image-rendering:pixelated;image-rendering:crisp-edges;background:#07080f;display:none}
 .screen{position:fixed;left:0;right:0;top:0;height:100%;display:none;align-items:center;justify-content:center;padding:16px;overflow:auto;background:radial-gradient(ellipse at 50% 30%,#1b1530 0%,#07080f 70%)}
 .screen.on{display:flex}
 .screen.overlay{background:rgba(7,8,15,.82)}
@@ -968,8 +1012,11 @@ for(const [n,lb] of TB){const d=document.createElement('div');d.className='tb tb
   const on=e=>{e.preventDefault();audioInit();touch[n]=true;d.classList.add('on');try{d.setPointerCapture(e.pointerId);}catch(_){}};const off=e=>{touch[n]=false;d.classList.remove('on');};
   d.addEventListener('pointerdown',on);d.addEventListener('pointerup',off);d.addEventListener('pointercancel',off);d.addEventListener('lostpointercapture',off);tdiv.appendChild(d);}
 function setBox(el,l,t,w,h){el.style.left=l+'px';el.style.top=t+'px';el.style.width=w+'px';el.style.height=h+'px';el.style.right=el.style.bottom='auto';}
+// 화면 크기 = body 박스(보이는 영역 - 안전 영역, 머리말 lfVvSync 참고). body 가 아직 없으면 visualViewport
+function vpBox(){if(window.lfVvSync)lfVvSync();const r=document.body&&document.body.getBoundingClientRect();if(r&&r.width>0&&r.height>0)return{w:Math.round(r.width),h:Math.round(r.height)};
+  const vv=window.visualViewport;return{w:Math.round(vv?vv.width:innerWidth),h:Math.round(vv?vv.height:innerHeight)};}
 function layout(){
-  const vv=window.visualViewport,w=Math.round(vv?vv.width:innerWidth),h=Math.round(vv?vv.height:innerHeight),dpr=Math.min(3,devicePixelRatio||1);
+  const vb=vpBox(),w=vb.w,h=vb.h,dpr=Math.min(3,devicePixelRatio||1);
   portrait=isTouch&&h>w*1.1;
   panelH=portrait?Math.round(clamp(h*.36,290,340)):0;
   const gh=h-panelH;
@@ -997,7 +1044,7 @@ function layout(){
 }
 let layoutT=0;const relayout=()=>{clearTimeout(layoutT);layoutT=setTimeout(layout,60);};
 addEventListener('resize',relayout);addEventListener('orientationchange',()=>setTimeout(layout,250));
-if(window.visualViewport)visualViewport.addEventListener('resize',relayout);
+if(window.visualViewport)visualViewport.addEventListener('resize',relayout);addEventListener('pageshow',relayout);
 document.addEventListener('fullscreenchange',()=>{setTimeout(layout,100);updateFsBtn();});document.addEventListener('webkitfullscreenchange',()=>{setTimeout(layout,100);updateFsBtn();});
 // 게임(결과 포함) 화면에서만: 핀치·iOS 제스처 확대, Ctrl+휠 확대, 길게 누름 메뉴, 텍스트 선택·이미지 끌기 차단. 화면을 나가면 해제
 // (Ctrl +/- 키보드 확대는 브라우저가 처리해 막을 수 없음. 로비는 접근성을 위해 iOS 핀치 확대를 남김)
@@ -1319,7 +1366,7 @@ const CW={el:$('chat-game'),st:null,op:60,newT:0,title:null,fold:null,rng:null};
 let cwSaved={};try{const o=JSON.parse(localStorage.getItem('lf_chatwin')||'{}');if(o&&typeof o==='object')cwSaved=o;}catch(e){cwSaved={};}
 const cwNum=(a,b)=>typeof a==='number'&&isFinite(a)?a:b;
 CW.op=clamp(Math.round(cwNum(cwSaved.op,60)),20,100);
-function cwVp(){const vv=window.visualViewport;return{w:Math.round(vv?vv.width:innerWidth),h:Math.round(vv?vv.height:innerHeight)};}
+function cwVp(){return vpBox();}
 function cwLoad(){const v=cwVp(),d={x:10,y:v.h-170-84,w:360,h:170,c:0}; // 기본: 좌하단, 캔버스 HUD(체력·무기) 바로 위
   CW.st={x:cwNum(cwSaved.x,d.x),y:cwNum(cwSaved.y,d.y),w:cwNum(cwSaved.w,d.w),h:cwNum(cwSaved.h,d.h),c:cwSaved.c?1:0};}
 function cwSave(){const s=CW.st;if(!s)return;cwSaved={x:s.x,y:s.y,w:s.w,h:s.h,c:s.c,op:CW.op};try{localStorage.setItem('lf_chatwin',JSON.stringify(cwSaved));}catch(e){}}
