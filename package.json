@@ -5,7 +5,8 @@
   "description": "리에로 포에버 - 웹 실시간 멀티 땅굴 결투 게임 서버",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"
